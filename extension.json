@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "apiVersion": "1.0.0",
+  "author": "Peter Jaquiery",
+  "description": "Match text in async serial logging",
+  "name": "Re Search",
+  "extensions": {
+    "ReSearch": {
+      "type": "HighLevelAnalyzer",
+      "entryPoint": "ReSearch.ReSearch"
+    }
+  }
+}
