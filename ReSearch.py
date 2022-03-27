@@ -80,7 +80,6 @@ class StrBlockBuffer:
             block.charTime = charTime
             return
 
-
     def Match(self, drop = False):
         if not len(self.blocks):
             return
@@ -125,10 +124,9 @@ class StrBlockBuffer:
             if start.endIndex < lastIdx:
                 continue
 
-            offset = lastIdx - start.startIndex - 1
+            offset = lastIdx - start.startIndex
             endEpoch = start.startTime + GTD(offset * start.charTime)
             break
-
 
         result = AsObj(
             str = match.string[firstIdx:lastIdx],
