@@ -95,7 +95,7 @@ class StrBlockBuffer:
                 startIndex = startIndex,
                 endIndex = endIndex,
                 startTime = block.start,
-                charTime = block.charTime
+                charTime = float(block.charTime)
             ))
 
         match = re.search(self.pattern, searchStr)
@@ -169,26 +169,56 @@ class ReSearch(HighLevelAnalyzer):
     '''
 
     def AddAddress(self, params):
-        asStr = str(params.data["data"])
+        if bool == type(params.data["address"]):
+            # Data is an address byte for an async serial protocol
+            self.haveAddress = True
+
+        if bytes != type(params.data["address"]):
+            print("!AddAddress can't handle " + str(type(params.data["address"])))
+            return False
+
+        self.haveAddress = True
+        asStr = "@" + hex(params.data["address"][0]) + " "
         self.blocks.AddBlock(asStr, params.start_time, params.end_time)
+        return False
 
     def AddData(self, params):
-        asStr = params.data["data"].decode("utf-8")
+        result = True
+
+        if 'address' in params.data and params.data["address"]:
+            asStr = '@' + hex(params.data["data"][0]) + ' '
+
+        elif self.haveAddress \
+            or params.data["data"][0] > 127 \
+            or params.data["data"][0] < 32:
+            # I2C or other bus protocol with addressed devices or the character
+            # from an async serial analyzer is outside the ASCII range
+            asStr = hex(params.data["data"][0]) + ' '
+            result = False # Wait for a stop before we try to match
+
+        else:
+            asStr = params.data["data"].decode("ascii")
+
         self.blocks.AddBlock(asStr, params.start_time, params.end_time)
+        return result
 
     def AddResult(self, params):
         self.blocks.AddBlock(params.data["data"], params.start_time, params.end_time)
+        return True
 
     def AddStart(self, params):
-        self.blocks.AddBlock(params.data["data"], params.start_time, params.end_time)
+        return False
 
     def AddStop(self, params):
-        self.blocks.AddBlock(params.data["data"], params.start_time, params.end_time)
+        return True
 
     def __init__(self):
         self.blocks = StrBlockBuffer(self.kMatch)
+        self.haveAddress = False
         self.isSource = False
         self.Reset()
+
+        # handlers return True if a match should be attempted
         self.handlerDispatch = {
             "address": self.AddAddress,
             "data": self.AddData,
@@ -201,15 +231,17 @@ class ReSearch(HighLevelAnalyzer):
     def decode(self, newFrame: AnalyzerFrame):
         self.frame = newFrame
 
-        if newFrame.type in self.handlerDispatch:
-            # Add the bubble text for the frame
-            self.handlerDispatch[newFrame.type](newFrame)
+        if not newFrame.type in self.handlerDispatch:
+            print("decode() can't handle " + newFrame.type)
+            return
+
+        if not self.handlerDispatch[newFrame.type](newFrame):
+            return
 
         match = self.blocks.Match(drop = True)
 
         if not match:
             return
 
-        print('"' + match.str + '": ' + str(match.start) + ' - ' + str(match.end))
         return AnalyzerFrame \
             ('Matched', match.start, match.end, {'Matched': match.str})
