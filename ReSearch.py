@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
-from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame, StringSetting
+from saleae.analyzers import HighLevelAnalyzer, AnalyzerFrame
+from saleae.analyzers import NumberSetting, StringSetting
 from saleae.data import GraphTimeDelta as GTD
 
 kTimeZero = datetime(1, 1, 1)
@@ -73,11 +74,37 @@ class StrBlockBuffer:
             # the string. Trim the string and update the block start time
             startEpoch = block.start
             endEpoch = block.end
-            charTime = (endEpoch - startEpoch) / strLen
             delChars = lastIndex - blockStartIndex
-            block.start = startEpoch + GTD(charTime * delChars)
+            block.start = startEpoch + GTD(block.charTime * delChars)
             block.str = block.str[lastIndex - blockStartIndex : ]
-            block.charTime = charTime
+            return
+
+    def DropBefore(self, timeDelta):
+        # Remove all blocks before the end time of the last block - timeDelta
+        if not len(self.blocks):
+            return
+
+        # Calculate the cut off time
+        cutOffTime = self.blocks[-1].end - GTD(timeDelta)
+
+        while len(self.blocks):
+            block = self.blocks[0]
+            strLen = len(block.str)
+
+            if block.start > cutOffTime:
+                # Whole block is within allowed time span. Done
+                return
+
+            if block.end < cutOffTime:
+                # None of the block is within the allowed time span. Drop it.
+                del self.blocks[0]
+                continue
+
+            # The block spans the start of the allowed time span. Trim the
+            # block.
+            delCount = int((float(cutOffTime - block.start) + block.charTime) / block.charTime)
+            block.start += GTD(delCount * block.charTime)
+            block.str = block.str[delCount : ]
             return
 
     def Match(self, drop = False):
@@ -142,6 +169,7 @@ class StrBlockBuffer:
 class ReSearch(HighLevelAnalyzer):
 
     kMatch = StringSetting(label = "Match")
+    kMatchTime = StringSetting(label = "Max span (s)")
 
     result_types = {
         "Matched": {"format": "{{{data.Matched}}}"},
@@ -188,9 +216,7 @@ class ReSearch(HighLevelAnalyzer):
         if 'address' in params.data and params.data["address"]:
             asStr = '@' + hex(params.data["data"][0]) + ' '
 
-        elif self.haveAddress \
-            or params.data["data"][0] > 127 \
-            or params.data["data"][0] < 32:
+        elif self.haveAddress or params.data["data"][0] > 127:
             # I2C or other bus protocol with addressed devices or the character
             # from an async serial analyzer is outside the ASCII range
             asStr = hex(params.data["data"][0]) + ' '
@@ -218,6 +244,11 @@ class ReSearch(HighLevelAnalyzer):
         self.isSource = False
         self.Reset()
 
+        if not len(self.kMatchTime):
+            self.kMatchTime = "0"
+
+        self.kMatchTime = float(str(self.kMatchTime))
+
         # handlers return True if a match should be attempted
         self.handlerDispatch = {
             "address": self.AddAddress,
@@ -237,6 +268,9 @@ class ReSearch(HighLevelAnalyzer):
 
         if not self.handlerDispatch[newFrame.type](newFrame):
             return
+
+        if self.kMatchTime:
+            self.blocks.DropBefore(self.kMatchTime)
 
         match = self.blocks.Match(drop = True)
 

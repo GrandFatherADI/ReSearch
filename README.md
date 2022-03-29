@@ -17,15 +17,33 @@ supported.
 Install **ReSearch** by clicking "Install" on the **Re Search** entry in the
 Extensions panel.
 
-Use the Analyzers side panel to use a Re Search analyzer with a suitable low
-level analyser. At present the Async Serial analyzer is well supported. I2C
-partial support has been added, but not thoroughly tested. Untested support for
-other LLAs may be added in the future.
+Use the Analyzers side panel to add a Re Search analyzer.
 
-In the ReSearch Settings dialog select the required input analyzer then set the
-regular expression match string. Python regular expression syntax is used for
-the match string. Note that the provided match is not checked for syntax errors
-(a badly formed string will generate a somewhat cryptic error dialog in Logic!)
+In the ReSearch Settings dialog select the LLA. At present the Async Serial
+analyzer is well supported. I2C partial support has been added, but is not
+thoroughly tested. Support for other LLAs may be added in the future.
+
+### Match
+
+Use the Match setting to set teh regular expression. Python regular expression
+syntax is used for the match string. Note that the provided match is not checked
+for syntax errors (a badly formed string will generate a somewhat cryptic error
+dialog in Logic!).
+
+Note that trailing wild card matches are generally not useful as the match is
+performed when each character is added to the target string. For example, `fox.*`
+will match `fox`, at which point all characters up to and including `fox` will
+be dropped. Anchor the end of the expression with a non-wild pattern. Often a
+positive look ahead match (`(?= ...)`) is useful as an anchor.
+
+### Max span (s)
+
+Use the **Max span (s)** setting to specify the maximum width in seconds allowed
+for a match. This can be used to match only within a block of text when there is
+significant time between blocks for example. It also makes the matching process
+run faster because it can ignore anything that is too old.
+
+Setting **Max span (s)** to `0` or leaving it blank turns this feature off.
 
 ## Data Rendering
 
